@@ -24,7 +24,7 @@ public class TinyUrlController : ControllerBase
     {
         try
         {
-            var tinyUrl = await _tinyUrlService.CreateTinyUrlAsync(request.LongUrl);
+            var tinyUrl = await _tinyUrlService.CreateTinyUrlAsync(request);
             return CreatedAtAction(
                 nameof(GetTinyUrl),
                 new { id = tinyUrl.Id },
@@ -33,7 +33,7 @@ public class TinyUrlController : ControllerBase
         catch (ArgumentException ex)
         {
             _logger.LogWarning(ex, "Invalid request to create tiny URL");
-            return BadRequest(ex.Message);
+            return BadRequest(new ErrorResponse(ex.Message));
         }
     }
 

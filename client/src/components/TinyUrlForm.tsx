@@ -1,16 +1,19 @@
 import { useState } from "react"
 import { QueryErrorResetBoundary, useMutation, useQueryClient } from "@tanstack/react-query"
-import { apiClient, queryKeys } from "../lib/apiClient"
 import ErrorMessage from "./ErrorMessage"
+import { apiClient, queryKeys } from "../lib/apiClient"
+import type { TinyUrlRequest } from "../types"
 
 export default function TinyUrlForm() {
   const [inputUrl, setInputUrl] = useState('')
+  const [customShortCode, setCustomShortCode] = useState('')
   const queryClient = useQueryClient()
 
   const createTinyUrlMutation = useMutation({
-    mutationFn: apiClient.createTinyUrl,
+    mutationFn: (request: TinyUrlRequest) => apiClient.createTinyUrl(request),
     onSuccess: () => {
       setInputUrl('')
+      setCustomShortCode('')
       queryClient.invalidateQueries({ queryKey: [queryKeys.tinyUrls] })
     },
   })
@@ -20,9 +23,14 @@ export default function TinyUrlForm() {
     createTinyUrlMutation.reset()
   }
 
+  const handleCustomShortCodeChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    setCustomShortCode(event.target.value)
+    createTinyUrlMutation.reset()
+  }
+
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    createTinyUrlMutation.mutate(inputUrl)
+    createTinyUrlMutation.mutate({ longUrl: inputUrl, shortCode: customShortCode })
   }
 
   return (
@@ -33,12 +41,22 @@ export default function TinyUrlForm() {
         <form className="flex flex-col gap-4" onSubmit={handleSubmit}>
           <label htmlFor="url">Shorten a long URL</label>
           <input 
-            type="text" 
-            id="url" 
-            value={inputUrl} 
-            onChange={handleChange} 
-            className="w-full px-6 py-3 rounded-lg bg-gray-800 border border-transparent text-base font-medium transition-colors hover:border-blue-500 focus:outline-none focus:ring-4 focus:ring-blue-500/40" 
+            type="text"
+            id="url"
+            placeholder="Enter a long URL"
+            value={inputUrl}
+            onChange={handleChange}
           />
+          <div className="flex items-center gap-2">
+            <span className="whitespace-nowrap">http://localhost:5226/</span>
+            <input 
+              type="text"
+              id="url"
+              placeholder="Custom short code (optional)"
+              value={customShortCode}
+              onChange={handleCustomShortCodeChange}
+            />
+          </div>
           <button 
             type="submit"
             disabled={createTinyUrlMutation.isPending}

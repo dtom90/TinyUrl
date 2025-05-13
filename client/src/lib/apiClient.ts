@@ -1,5 +1,5 @@
 import axios, { AxiosError } from 'axios';
-import type { TinyUrlRecord } from '../types';
+import type { TinyUrlRecord, TinyUrlRequest } from '../types';
 
 const API_BASE_URL = 'http://localhost:5226/api/tinyurls';
 
@@ -9,9 +9,9 @@ export const queryKeys = {
 } as const;
 
 export const apiClient = {
-  createTinyUrl: async (longUrl: string): Promise<TinyUrlRecord> => {
+  createTinyUrl: async (request: TinyUrlRequest): Promise<TinyUrlRecord> => {
     try {
-      const response = await axios.post<TinyUrlRecord>(`${API_BASE_URL}`, { longUrl });
+      const response = await axios.post<TinyUrlRecord>(`${API_BASE_URL}`, request);
       return response.data;
     } catch (error) {
       console.error(error);
@@ -53,7 +53,7 @@ export const apiClient = {
 export const getErrorMessage = (error: unknown, action: string): string => {
   let errorMessage = `Failed to ${action} short URL. Please try again.`;
   if (error instanceof AxiosError) {
-    errorMessage = error.response?.data || error.message;
+    errorMessage = error.response?.data?.error || error.message;
   } else if (error instanceof Error) {
     errorMessage = error.message;
   }

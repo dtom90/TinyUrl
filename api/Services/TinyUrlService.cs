@@ -1,11 +1,13 @@
 using TinyUrl.Api.Models;
 using System.Collections.Concurrent;
+using System.Text.RegularExpressions;
+using Microsoft.AspNetCore.Http.HttpResults;
 
 namespace TinyUrl.Api.Services;
 
 public interface ITinyUrlService
 {
-    Task<TinyUrlRecord> CreateTinyUrlAsync(string longUrl);
+    Task<TinyUrlRecord> CreateTinyUrlAsync(TinyUrlRequest request);
     Task<IEnumerable<TinyUrlRecord>> GetAllUrlsAsync();
     Task<string?> GetLongUrlAsync(string id);
     Task<TinyUrlRecord?> DeleteUrlAsync(string id);
@@ -23,33 +25,58 @@ public class TinyUrlService : ITinyUrlService
     private const string BaseUrl = "http://localhost:5226/";
     private readonly Random _random = new();
 
-    public Task<TinyUrlRecord> CreateTinyUrlAsync(string longUrl)
+    public Task<TinyUrlRecord> CreateTinyUrlAsync(TinyUrlRequest request)
     {
-        if (string.IsNullOrWhiteSpace(longUrl))
+        if (string.IsNullOrWhiteSpace(request.LongUrl))
         {
             throw new ArgumentException("Long URL is required");
         }
 
-        if (!Uri.TryCreate(longUrl, UriKind.Absolute, out var uri) || (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps))
+        if (!Uri.TryCreate(request.LongUrl, UriKind.Absolute, out var uri) || (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps))
         {
-            throw new ArgumentException($"\"{longUrl}\" is not a valid URL");
+            throw new ArgumentException($"\"{request.LongUrl}\" is not a valid URL");
         }
 
         string shortCode;
-        do
+        if (string.IsNullOrWhiteSpace(request.ShortCode))
         {
-            shortCode = GenerateShortCode();
-        } while (_urlStore.ContainsKey(shortCode));
+            do
+            {
+                shortCode = GenerateShortCode();
+            } while (_urlStore.ContainsKey(shortCode));
+        }
+        else
+        {
+            // Check if short code is a valid format
+            if (!Regex.IsMatch(request.ShortCode, "^[a-zA-Z0-9]+$"))
+            {
+                throw new ArgumentException($"Short code \"{request.ShortCode}\" is not valid (only alphanumeric characters are allowed)");
+            }
+            if (_urlStore.ContainsKey(request.ShortCode))
+            {
+                throw new ArgumentException($"Short code \"{request.ShortCode}\" is already in use");
+            }
+            shortCode = request.ShortCode;
+        }
 
         var tinyUrl = new TinyUrlRecord(
             Id: shortCode,
-            LongUrl: longUrl,
+            LongUrl: request.LongUrl,
             ShortUrl: $"{BaseUrl}{shortCode}",
             ClickCount: 0
         );
 
-        _urlStore[shortCode] = tinyUrl;
-        _urlRedirectMap[shortCode] = longUrl;
+        if (!_urlStore.TryAdd(shortCode, tinyUrl))
+        {
+            Console.Error.WriteLine($"Failed to add to _urlStore for short code '{shortCode}' - it may have been added concurrently");
+            throw new InvalidOperationException();
+        }
+        if (!_urlRedirectMap.TryAdd(shortCode, request.LongUrl))
+        {
+            _urlStore.TryRemove(shortCode, out _); // If we failed to add to the redirect map, we should clean up the urlStore entry
+            Console.Error.WriteLine($"Failed to add to _urlRedirectMap for short code '{shortCode}' - it may have been added concurrently");
+            throw new InvalidOperationException();
+        }
         return Task.FromResult(tinyUrl);
     }
 

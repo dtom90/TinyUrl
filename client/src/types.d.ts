@@ -1,5 +1,6 @@
 interface TinyUrlRequest {
   longUrl: string;
+  shortCode?: string;
 }
 
 interface TinyUrlRecord {
