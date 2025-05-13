@@ -1,46 +1,46 @@
-import { useEffect, useState } from "react";
-import { apiClient } from "../lib/apiClient";
-import type { TinyUrlRecord } from "../types";
+import { useQuery, useMutation, useQueryClient, QueryErrorResetBoundary } from "@tanstack/react-query"
+import { apiClient, queryKeys } from "../lib/apiClient"
+import ErrorMessage from "./ErrorMessage"
 
-interface TinyUrlListProps {
-  refreshTrigger: number
-}
+export default function TinyUrlList() {
+  const queryClient = useQueryClient()
 
-export default function TinyUrlList({ refreshTrigger }: TinyUrlListProps) {
-  const [tinyUrls, setTinyUrls] = useState<TinyUrlRecord[]>([]);
+  const { data: tinyUrls = [], isLoading, error: listError } = useQuery({
+    queryKey: [queryKeys.tinyUrls],
+    queryFn: apiClient.listTinyUrls,
+  })
 
-  const fetchUrls = async () => {
-    try {
-      const data = await apiClient.listTinyUrls();
-      setTinyUrls(data);
-    } catch (error) {
-      console.error("Error fetching URLs:", error);
-    }
-  };
+  const { mutate: deleteTinyUrl, isPending: isDeleting, error: deleteError, reset: resetDelete } = useMutation({
+    mutationFn: apiClient.deleteTinyUrl,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [queryKeys.tinyUrls] })
+    },
+  })
 
-  const handleDelete = async (id: string) => {
-    try {
-      await apiClient.deleteTinyUrl(id);
-      fetchUrls();
-    } catch (error) {
-      console.error("Error deleting URL:", error);
-    }
-  };
-
-  useEffect(() => {
-    fetchUrls();
-  }, [refreshTrigger]);
+  if (isLoading) {
+    return <div>Loading...</div>
+  }
 
   return (
-    <div>
-      <h2>Tiny URL List</h2>
-      <ul className="list-disc list-inside">
-        {tinyUrls.map((url) => (
-          <li key={url.id}>
-            ID: {url.id} | Short URL: {url.shortUrl} | Long URL: {url.longUrl} | <button onClick={() => handleDelete(url.id)} className="text-red-500 hover:text-red-600 cursor-pointer">Delete</button>
-          </li>
-        ))}
-      </ul>
+    <div className="pt-8 w-full max-w-xl">
+      <QueryErrorResetBoundary>
+        <ErrorMessage error={listError || deleteError} onReset={() => resetDelete()} />
+
+        <ul className="list-disc list-inside">
+          {tinyUrls.map((url) => (
+            <li key={url.id}>
+              ID: {url.id} | Short URL: {url.shortUrl} | Long URL: {url.longUrl} | 
+              <button 
+                onClick={() => deleteTinyUrl(url.id)}
+                disabled={isDeleting}
+                className="text-red-500 hover:text-red-600 cursor-pointer disabled:opacity-50"
+              >
+                {isDeleting ? 'Deleting...' : 'Delete'}
+              </button>
+            </li>
+          ))}
+        </ul>
+      </QueryErrorResetBoundary>
     </div>
-  );
+  )
 }

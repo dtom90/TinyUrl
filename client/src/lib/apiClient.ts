@@ -1,7 +1,12 @@
-import axios from 'axios';
+import axios, { AxiosError } from 'axios';
 import type { TinyUrlRecord } from '../types';
 
 const API_BASE_URL = 'http://localhost:5226/api/tinyurls';
+
+export const queryKeys = {
+  tinyUrls: 'tinyUrls',
+  tinyUrl: (id: string) => ['tinyUrl', id],
+} as const;
 
 export const apiClient = {
   createTinyUrl: async (longUrl: string): Promise<TinyUrlRecord> => {
@@ -9,8 +14,8 @@ export const apiClient = {
       const response = await axios.post<TinyUrlRecord>(`${API_BASE_URL}`, { longUrl });
       return response.data;
     } catch (error) {
-      console.error('Error creating short URL:', error);
-      throw error;
+      console.error(error);
+      throw new Error(getErrorMessage(error, 'create'));
     }
   },
 
@@ -19,8 +24,8 @@ export const apiClient = {
       const response = await axios.get<TinyUrlRecord>(`${API_BASE_URL}/${id}`);
       return response.data;
     } catch (error) {
-      console.error('Error retrieving tiny URL:', error);
-      throw error;
+      console.error(error);
+      throw new Error(getErrorMessage(error, 'get'));
     }
   },
 
@@ -29,8 +34,8 @@ export const apiClient = {
       const response = await axios.get<TinyUrlRecord[]>(`${API_BASE_URL}`);
       return response.data;
     } catch (error) {
-      console.error('Error fetching URLs:', error);
-      throw error;
+      console.error(error);
+      throw new Error(getErrorMessage(error, 'list'));
     }
   },
 
@@ -39,8 +44,18 @@ export const apiClient = {
       const response = await axios.delete<TinyUrlRecord>(`${API_BASE_URL}/${id}`);
       return response.data;
     } catch (error) {
-      console.error('Error deleting tiny URL:', error);
-      throw error;
+      console.error(error);
+      throw new Error(getErrorMessage(error, 'delete'));
     }
   },
+};
+
+export const getErrorMessage = (error: unknown, action: string): string => {
+  let errorMessage = `Failed to ${action} short URL. Please try again.`;
+  if (error instanceof AxiosError) {
+    errorMessage = error.response?.data || error.message;
+  } else if (error instanceof Error) {
+    errorMessage = error.message;
+  }
+  return errorMessage;
 };
