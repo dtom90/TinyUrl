@@ -50,7 +50,7 @@ public class TinyUrlController : ControllerBase
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<TinyUrlRecord>> GetTinyUrl(string id)
     {
-        var tinyUrl = await _tinyUrlService.GetUrlAsync(id);
+        var tinyUrl = await _tinyUrlService.GetLongUrlAsync(id);
         if (tinyUrl == null)
         {
             return NotFound();

@@ -11,7 +11,7 @@ export default function ErrorMessage({ error, onReset }: ErrorMessageProps) {
         <span>{error?.message || 'no error'}</span>
         <button 
           onClick={onReset}
-          className="ml-4 px-2 py-1 text-sm rounded bg-red-500/20 hover:bg-red-500/30 transition-colors"
+          className="delete-button"
         >
           Dismiss
         </button>

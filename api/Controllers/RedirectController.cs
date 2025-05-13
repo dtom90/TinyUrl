@@ -17,18 +17,15 @@ public class RedirectController : ControllerBase
     }
 
     [HttpGet("{id}")]
-    [ProducesResponseType(StatusCodes.Status302Found)]
+    [ProducesResponseType(StatusCodes.Status302Found)] // TODO: decide if we want to use 301 or 302
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> RedirectToLongUrl(string id)
     {
-        var tinyUrl = await _tinyUrlService.GetUrlAsync(id);
-        if (tinyUrl == null)
+        var longUrl = await _tinyUrlService.GetLongUrlAsync(id);
+        if (longUrl == null)
         {
-            _logger.LogWarning("Tiny URL not found: {Id}", id);
             return NotFound();
         }
-
-        _logger.LogInformation("Redirecting {Id} to {LongUrl}", id, tinyUrl.LongUrl);
-        return Redirect(tinyUrl.LongUrl);
+        return Redirect(longUrl);
     }
 }

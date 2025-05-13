@@ -42,7 +42,6 @@ export default function TinyUrlForm() {
           <button 
             type="submit"
             disabled={createTinyUrlMutation.isPending}
-            className="px-6 py-3 rounded-lg bg-gray-800 border border-transparent text-base font-medium transition-colors hover:border-blue-500 focus:outline-none focus:ring-4 focus:ring-blue-500/40 disabled:opacity-50"
           >
             {createTinyUrlMutation.isPending ? 'Creating...' : 'Create'}
           </button>
