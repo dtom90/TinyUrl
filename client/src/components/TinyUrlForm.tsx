@@ -1,17 +1,26 @@
 import { useState } from "react"
+import { apiClient } from "../lib/apiClient"
 
-export default function TinyUrlForm() {
+interface TinyUrlFormProps {
+  onUrlCreated: () => void
+}
+
+export default function TinyUrlForm({ onUrlCreated }: TinyUrlFormProps) {
   const [inputUrl, setInputUrl] = useState('')
-  const [longUrl, setLongUrl] = useState('')
 
   const handleChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     setInputUrl(event.target.value)
   }
 
-  const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    setLongUrl(inputUrl)
-    setInputUrl('')
+    try {
+      await apiClient.createTinyUrl(inputUrl)
+      setInputUrl('')
+      onUrlCreated()
+    } catch (error) {
+      console.error('Error creating tiny URL:', error)
+    }
   }
 
   return (
@@ -26,11 +35,6 @@ export default function TinyUrlForm() {
           Create
         </button>
       </form>
-      {longUrl && (
-        <p className="text-sm text-gray-400">
-          Long URL: <a href={longUrl} target="_blank" rel="noopener noreferrer">{longUrl}</a>
-        </p>
-      )}
     </div>
   )
 }
