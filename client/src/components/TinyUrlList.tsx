@@ -35,7 +35,7 @@ export default function TinyUrlList() {
         ) : (
           tinyUrls.map((url) => (
             <div className="flex justify-between items-center border rounded-lg p-4 border-gray-700 pb-4 mb-4" key={url.id}>
-            <span>
+            <span className="break-all">
               <div>Short URL: <a href={url.shortUrl} target="_blank" rel="noopener noreferrer">{url.shortUrl}</a></div>
               <div>Long URL: <a href={url.longUrl} target="_blank" rel="noopener noreferrer">{url.longUrl}</a></div>
               <div>Click Count: {url.clickCount}</div>
