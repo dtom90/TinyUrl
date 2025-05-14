@@ -1,7 +1,7 @@
 using TinyUrl.Api.Models;
 using System.Collections.Concurrent;
 using System.Text.RegularExpressions;
-using Microsoft.AspNetCore.Http.HttpResults;
+using System.Security.Cryptography;
 
 namespace TinyUrl.Api.Services;
 
@@ -15,15 +15,21 @@ public interface ITinyUrlService
 
 public class TinyUrlService : ITinyUrlService
 {
-    // This dictionary stores all the data related to the tiny urls, including the click count.
-    // It will experience more frequent writes, due to the need to update the click count.
     private readonly ConcurrentDictionary<string, TinyUrlRecord> _urlStore = new();
     
-    // This dictionary is used for quick lookups of the long url for a given short code.
-    // It is kept separate from the _urlStore to avoid contention on the click count writes.
-    private readonly ConcurrentDictionary<string, string> _urlRedirectMap = new();
+    // Note: in a real application, these should be set in configuration. Hard-coding them here for simplicity.
     private const string BaseUrl = "http://localhost:5226/";
-    private readonly Random _random = new();
+    private const int MinShortCodeLength = 3;
+    private const int MaxShortCodeLength = 8;
+    private const int DefaultShortCodeLength = 6;
+    private const int MaxGenerateShortCodeAttempts = 10;
+    private static readonly string[] ReservedShortCodes = new[] { "api", "tinyurl", "tinyurls" };
+    private readonly ILogger<TinyUrlService> _logger;
+
+    public TinyUrlService(ILogger<TinyUrlService> logger)
+    {
+        _logger = logger;
+    }
 
     public Task<TinyUrlRecord> CreateTinyUrlAsync(TinyUrlRequest request)
     {
@@ -38,25 +44,38 @@ public class TinyUrlService : ITinyUrlService
         }
 
         string shortCode;
-        if (string.IsNullOrWhiteSpace(request.ShortCode))
+        if (!string.IsNullOrWhiteSpace(request.ShortCode))
         {
-            do
-            {
-                shortCode = GenerateShortCode();
-            } while (_urlStore.ContainsKey(shortCode));
-        }
-        else
-        {
-            // Check if short code is a valid format
             if (!Regex.IsMatch(request.ShortCode, "^[a-zA-Z0-9]+$"))
             {
                 throw new ArgumentException($"Short code \"{request.ShortCode}\" is not valid (only alphanumeric characters are allowed)");
             }
+
+            if (request.ShortCode.Length < MinShortCodeLength)
+            {
+                throw new ArgumentException($"Short code \"{request.ShortCode}\" is too short (minimum length is {MinShortCodeLength} characters)");
+            }
+
+            if (request.ShortCode.Length > MaxShortCodeLength)
+            {
+                throw new ArgumentException($"Short code \"{request.ShortCode}\" is too long (maximum length is {MaxShortCodeLength} characters)");
+            }
+
+            if (ReservedShortCodes.Contains(request.ShortCode))
+            {
+                throw new ArgumentException($"Short code \"{request.ShortCode}\" is reserved for internal use");
+            }
+
             if (_urlStore.ContainsKey(request.ShortCode))
             {
                 throw new ArgumentException($"Short code \"{request.ShortCode}\" is already in use");
             }
+
             shortCode = request.ShortCode;
+        }
+        else
+        {
+            shortCode = GenerateShortCode();
         }
 
         var tinyUrl = new TinyUrlRecord(
@@ -68,14 +87,15 @@ public class TinyUrlService : ITinyUrlService
 
         if (!_urlStore.TryAdd(shortCode, tinyUrl))
         {
-            Console.Error.WriteLine($"Failed to add to _urlStore for short code '{shortCode}' - it may have been added concurrently");
-            throw new InvalidOperationException();
-        }
-        if (!_urlRedirectMap.TryAdd(shortCode, request.LongUrl))
-        {
-            _urlStore.TryRemove(shortCode, out _); // If we failed to add to the redirect map, we should clean up the urlStore entry
-            Console.Error.WriteLine($"Failed to add to _urlRedirectMap for short code '{shortCode}' - it may have been added concurrently");
-            throw new InvalidOperationException();
+            // handle the case where the short code we chose was added concurrently
+            // we try again with a new short code
+            shortCode = GenerateShortCode();
+            if (!_urlStore.TryAdd(shortCode, tinyUrl))
+            {
+                // if we fail again, we give up
+                _logger.LogError($"Failed to add to _urlStore for short code '{shortCode}' - it may have been added concurrently");
+                throw new InvalidOperationException();
+            }
         }
         return Task.FromResult(tinyUrl);
     }
@@ -87,9 +107,9 @@ public class TinyUrlService : ITinyUrlService
 
     public Task<string?> GetLongUrlAsync(string id)
     {
-        _urlRedirectMap.TryGetValue(id, out var longUrl);
-        _ = UpdateClickCountAsync(id); // Fire and forget
-        return Task.FromResult(longUrl);
+        _urlStore.TryGetValue(id, out var tinyUrl);
+        _ = UpdateClickCountAsync(id); // Asynchronously update the click count to avoid blocking the request
+        return Task.FromResult(tinyUrl?.LongUrl);
     }
 
     public Task<TinyUrlRecord?> DeleteUrlAsync(string id)
@@ -105,8 +125,19 @@ public class TinyUrlService : ITinyUrlService
     private string GenerateShortCode()
     {
         const string chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
-        return new string(Enumerable.Repeat(chars, 6)
-            .Select(s => s[_random.Next(s.Length)]).ToArray());
+        int attempts = 0;
+        string shortCode;
+        do
+        {
+            var bytes = new byte[DefaultShortCodeLength]; // 6 bytes mapped to 62 characters gives us 62^6 ≈ 56.8 billion possible short codes
+            RandomNumberGenerator.Fill(bytes);
+            shortCode = new string(bytes.Select(b => chars[b % chars.Length]).ToArray());
+        } while (_urlStore.ContainsKey(shortCode) && attempts < MaxGenerateShortCodeAttempts);
+        if (attempts >= MaxGenerateShortCodeAttempts)
+        {
+            throw new InvalidOperationException("Failed to generate a unique short code");
+        }
+        return shortCode;
     }
 
     private Task UpdateClickCountAsync(string id)

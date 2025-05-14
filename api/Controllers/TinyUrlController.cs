@@ -53,7 +53,7 @@ public class TinyUrlController : ControllerBase
         var tinyUrl = await _tinyUrlService.GetLongUrlAsync(id);
         if (tinyUrl == null)
         {
-            return NotFound();
+            return NotFound(new ErrorResponse($"Tiny URL with id '{id}' not found"));
         }
         return Ok(tinyUrl);
     }
@@ -66,7 +66,7 @@ public class TinyUrlController : ControllerBase
         var tinyUrl = await _tinyUrlService.DeleteUrlAsync(id);
         if (tinyUrl == null)
         {
-            return NotFound();
+            return NotFound(new ErrorResponse($"Tiny URL with id '{id}' not found"));
         }
         return Ok(tinyUrl);
     }

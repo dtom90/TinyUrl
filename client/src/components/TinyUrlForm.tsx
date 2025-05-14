@@ -3,6 +3,7 @@ import { QueryErrorResetBoundary, useMutation, useQueryClient } from "@tanstack/
 import ErrorMessage from "./ErrorMessage"
 import { apiClient, queryKeys } from "../lib/apiClient"
 import type { TinyUrlRequest } from "../types"
+import { config } from "../config"
 
 export default function TinyUrlForm() {
   const [inputUrl, setInputUrl] = useState('')
@@ -48,7 +49,7 @@ export default function TinyUrlForm() {
             onChange={handleChange}
           />
           <div className="flex items-center gap-2">
-            <span className="whitespace-nowrap">http://localhost:5226/</span>
+            <span className="whitespace-nowrap">{config.apiBaseUrl}/</span>
             <input 
               type="text"
               id="url"
